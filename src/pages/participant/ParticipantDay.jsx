@@ -4,7 +4,7 @@ import {
   getCurrentUser, getMarathons, getProgress, saveResponse, completeDay,
   TIMING_OPTIONS, grantAchievements, recordTipReveal
 } from '../../services/storage'
-import { ArrowLeft, CheckCircle2, ChevronRight, Send, Award, Play, Volume2, FileText, Image, Clock, ChevronLeft } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, ChevronRight, ChevronDown, Send, Award, Play, Volume2, FileText, Image, Clock, ChevronLeft } from 'lucide-react'
 
 // ── Achievement toast ──────────────────────────────────────
 function AchievementToast({ achievements, onDone }) {
@@ -105,12 +105,13 @@ function getEmbedUrl(url) {
 
 // ── Block renderers ────────────────────────────────────────
 
-function InfoBlock({ block, response, onChange, readonly }) {
+function InfoBlock({ block, response, onChange, readonly, variant = 'default' }) {
+  const isArticle = variant === 'article'
   return (
     <div className="bg-white rounded-2xl overflow-hidden card-shadow">
-      <div className="gradient-bg px-5 py-3 flex items-center gap-2 text-white">
-        <span className="text-lg">📖</span>
-        <span className="font-semibold text-sm">{block.title || 'Задание дня'}</span>
+      <div className={`px-5 py-3 flex items-center gap-2 text-white ${isArticle ? 'bg-slate-700' : 'gradient-bg'}`}>
+        <span className="text-lg">{isArticle ? '📰' : '📖'}</span>
+        <span className="font-semibold text-sm">{block.title || (isArticle ? 'Статья' : 'Задание дня')}</span>
       </div>
       {block.text && (
         <div className="px-5 py-4"><RichText text={block.text} /></div>
@@ -181,6 +182,28 @@ function ImageBlock({ block }) {
       <img src={block.url} alt={block.title || ''} className="w-full object-contain max-h-[500px] bg-gray-50" />
       {block.caption && <p className="px-5 py-3 text-sm text-gray-500">{block.caption}</p>}
     </div>
+  )
+}
+
+function TipSimpleBlock({ block }) {
+  const [open, setOpen] = useState(false)
+  if (!block.text) return null
+  return (
+    <button
+      type="button"
+      onClick={() => setOpen(!open)}
+      className="w-full text-left rounded-2xl border border-amber-200 overflow-hidden transition-all bg-gradient-to-br from-amber-50 to-amber-100/90"
+    >
+      <div className="flex items-center justify-between gap-3 px-5 py-4">
+        <span className="font-semibold text-amber-900 flex items-center gap-2"><span className="text-xl">{block.emoji || '💡'}</span>{block.title || 'Совет дня'}</span>
+        <ChevronDown size={20} className={`text-amber-700 shrink-0 transition-transform ${open ? 'rotate-180' : ''}`} />
+      </div>
+      {open && (
+        <div className="px-5 pb-5 pt-0 border-t border-amber-200/60">
+          <p className="text-sm text-amber-950 leading-relaxed pt-3">{block.text}</p>
+        </div>
+      )}
+    </button>
   )
 }
 
@@ -310,6 +333,87 @@ function PdfBlock({ block }) {
   )
 }
 
+function InteractiveBlock({ block }) {
+  const hasEmbed = block.embedUrl && /^https?:\/\//i.test(block.embedUrl.trim())
+  return (
+    <div className="bg-white rounded-2xl overflow-hidden card-shadow border border-indigo-100">
+      <div className="bg-indigo-600 px-5 py-3 flex items-center gap-2 text-white">
+        <span className="text-lg">🎮</span>
+        <span className="font-semibold text-sm">{block.title || 'Интерактив'}</span>
+      </div>
+      {block.description && <div className="px-5 py-3 text-sm text-gray-600 leading-relaxed">{block.description}</div>}
+      {hasEmbed ? (
+        <div className="px-2 pb-2">
+          <iframe
+            src={block.embedUrl.trim()}
+            className="w-full min-h-[280px] rounded-xl border border-gray-200 bg-gray-50"
+            title={block.title || 'Интерактив'}
+            sandbox="allow-scripts allow-same-origin allow-forms allow-popups"
+          />
+        </div>
+      ) : (
+        <div className="px-5 pb-5 text-xs text-indigo-400">Организатор добавит ссылку на игру или тренажёр — пока это задел под интерактив.</div>
+      )}
+    </div>
+  )
+}
+
+function FeedbackBlock({ block, response, onChange, readonly }) {
+  return (
+    <div className="bg-white rounded-2xl overflow-hidden card-shadow border border-rose-100">
+      <div className="bg-gradient-to-r from-rose-500 to-rose-600 px-5 py-3 flex items-center gap-2 text-white">
+        <span className="text-lg">💬</span>
+        <span className="font-semibold text-sm">{block.title || 'Обратная связь'}</span>
+      </div>
+      {block.prompt && (
+        <div className="px-5 py-4 text-sm text-gray-700 leading-relaxed border-b border-rose-50">{block.prompt}</div>
+      )}
+      <div className="px-5 py-4">
+        <p className="text-sm font-medium text-gray-700 mb-2">Твой ответ</p>
+        {readonly ? (
+          response ? <p className="text-sm text-gray-700 bg-gray-50 rounded-xl p-3 whitespace-pre-wrap">{response}</p> : null
+        ) : (
+          <textarea
+            className="textarea-field"
+            rows={5}
+            value={response || ''}
+            onChange={e => onChange(e.target.value)}
+            placeholder="Напиши всё, что хочешь передать..."
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
+function QuestionDayBlock({ block, response, onChange, readonly }) {
+  return (
+    <div className="bg-white rounded-2xl overflow-hidden card-shadow border border-cyan-100">
+      <div className="bg-gradient-to-r from-cyan-600 to-cyan-700 px-5 py-3 flex items-center gap-2 text-white">
+        <span className="text-lg">❓</span>
+        <span className="font-semibold text-sm">{block.title || 'Вопрос дня'}</span>
+      </div>
+      {block.text && (
+        <div className="px-5 py-4"><RichText text={block.text} /></div>
+      )}
+      <div className="px-5 pb-5 border-t border-gray-100 pt-4">
+        <p className="text-sm font-medium text-gray-700 mb-2">Твой ответ</p>
+        {readonly ? (
+          response ? <p className="text-sm text-gray-700 bg-gray-50 rounded-xl p-3 whitespace-pre-wrap">{response}</p> : null
+        ) : (
+          <textarea
+            className="textarea-field"
+            rows={4}
+            value={response || ''}
+            onChange={e => onChange(e.target.value)}
+            placeholder="Напиши ответ..."
+          />
+        )}
+      </div>
+    </div>
+  )
+}
+
 // ── Survey question ────────────────────────────────────────
 
 function SurveyQuestion({ question, value, onChange }) {
@@ -378,13 +482,14 @@ function SurveyQuestion({ question, value, onChange }) {
   return null
 }
 
-function SurveyBlock({ block, answers, onChange, readonly }) {
+function SurveyBlock({ block, answers, onChange, readonly, variant = 'survey' }) {
   if (!block.questions?.length) return null
+  const isQuiz = variant === 'quiz'
   return (
     <div className="bg-white rounded-2xl overflow-hidden card-shadow">
-      <div className="bg-gradient-to-r from-blue-500 to-blue-600 px-5 py-3 flex items-center gap-2 text-white">
-        <span className="text-lg">📊</span>
-        <span className="font-semibold text-sm">{block.title || 'Опрос дня'}</span>
+      <div className={`px-5 py-3 flex items-center gap-2 text-white bg-gradient-to-r ${isQuiz ? 'from-purple-600 to-purple-700' : 'from-blue-500 to-blue-600'}`}>
+        <span className="text-lg">{isQuiz ? '🧩' : '📊'}</span>
+        <span className="font-semibold text-sm">{block.title || (isQuiz ? 'Тест' : 'Опрос дня')}</span>
       </div>
       <div className="px-5 py-5 space-y-6">
         {block.questions.map(q => (
@@ -481,7 +586,7 @@ export default function ParticipantDay() {
     })
 
     // Check if all survey questions in the day were answered
-    const surveyBlocks = day.blocks.filter(b => b.type === 'survey')
+    const surveyBlocks = day.blocks.filter(b => b.type === 'survey' || b.type === 'quiz')
     const allSurveyAnswered = surveyBlocks.length > 0 && surveyBlocks.every(b => {
       const ans = responses[b.id] || {}
       return (b.questions || []).length > 0 && (b.questions || []).every(q => ans[q.id] !== undefined && ans[q.id] !== '')
@@ -548,11 +653,16 @@ export default function ParticipantDay() {
           return day.blocks.map(block => {
             const resp = responses[block.id]
             const setResp = (val) => !completed && setBlockResponse(block.id, val)
+            const tipIsSimple = block.type === 'tip' && block.tipMode === 'simple'
             return (
               <div key={block.id}>
                 <TimingBadge timing={block.timing} />
                 {block.type === 'info' && <InfoBlock block={block} response={resp} onChange={setResp} readonly={completed} />}
-                {block.type === 'tip' && (
+                {block.type === 'article' && <InfoBlock block={block} response={resp} onChange={setResp} readonly={completed} variant="article" />}
+                {block.type === 'feedback' && <FeedbackBlock block={block} response={resp} onChange={setResp} readonly={completed} />}
+                {block.type === 'question_day' && <QuestionDayBlock block={block} response={resp} onChange={setResp} readonly={completed} />}
+                {block.type === 'tip' && tipIsSimple && <TipSimpleBlock block={block} />}
+                {block.type === 'tip' && !tipIsSimple && (
                   <TipBlock
                     block={block}
                     unlocked={hasEngagement || completed}
@@ -571,7 +681,9 @@ export default function ParticipantDay() {
                 {block.type === 'carousel' && <CarouselBlock block={block} />}
                 {block.type === 'audio' && <AudioBlock block={block} />}
                 {block.type === 'pdf' && <PdfBlock block={block} />}
+                {block.type === 'interactive' && <InteractiveBlock block={block} />}
                 {block.type === 'survey' && <SurveyBlock block={block} answers={resp || {}} onChange={setResp} readonly={completed} />}
+                {block.type === 'quiz' && <SurveyBlock block={block} answers={resp || {}} onChange={setResp} readonly={completed} variant="quiz" />}
               </div>
             )
           })

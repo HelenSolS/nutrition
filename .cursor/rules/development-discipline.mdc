@@ -28,7 +28,7 @@ alwaysApply: true
 ## Контроль регрессий
 
 После каждого изменения мысленно проверить:
-- Существующие типы блоков (`info`, `video`, `image`, `carousel`, `audio`, `pdf`, `survey`, `tip`) — не сломались?
+- Существующие типы блоков (`article`, `info`, `video`, `image`, `carousel`, `audio`, `pdf`, `question_day`, `feedback`, `survey`, `quiz`, `tip`, `interactive`) — не сломались?
 - Логика прогресса участника (completedDays, debtDays, finished) — не тронута?
 - Ачивки — не сбрасываются случайно?
 - localStorage-схема — обратно совместима?

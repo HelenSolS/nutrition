@@ -154,6 +154,7 @@ export default function AdminDashboard() {
     }
     saveMarathon(copy)
     refresh()
+    navigate(`/admin/marathon/${copy.id}/edit`)
   }
 
   const handleDelete = (id) => {
@@ -308,13 +309,15 @@ export default function AdminDashboard() {
                         <Pencil size={16} />
                       </button>
 
-                      {/* Duplicate */}
+                      {/* Duplicate — явная подпись, не только иконка */}
                       <button
+                        type="button"
                         onClick={() => handleDuplicate(marathon)}
-                        className="p-2 rounded-lg hover:bg-amber-50 hover:text-amber-600 text-gray-400 transition-colors"
-                        title="Дублировать марафон"
+                        className="flex items-center gap-1.5 text-sm font-medium px-3 py-1.5 rounded-lg border border-amber-200 text-amber-800 bg-amber-50 hover:bg-amber-100 transition-colors"
+                        title="Создать копию марафона со всеми днями и блоками"
                       >
                         <Copy size={16} />
+                        <span className="hidden sm:inline">Копия</span>
                       </button>
 
                       {/* Delete */}

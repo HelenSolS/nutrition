@@ -7,6 +7,7 @@ const KEYS = {
   CURRENT_USER: 'marathon_current_user',
   LIBRARY: 'marathon_library',
   DAY_LIBRARY: 'marathon_day_library',
+  LESSON_ARCHIVE: 'marathon_lesson_archive',
 }
 
 const get = (key) => {
@@ -60,7 +61,12 @@ export const createBlock = (type) => {
     case 'audio':    return { ...base, title: '', url: '', caption: '' }
     case 'pdf':      return { ...base, title: '', url: '', caption: '' }
     case 'survey':   return { ...base, title: 'Опрос дня', questions: [] }
-    case 'tip':      return { ...base, title: 'Совет дня', text: '', emoji: '💡' }
+    case 'quiz':     return { ...base, title: 'Тест', questions: [] }
+    case 'tip':      return { ...base, title: 'Совет дня', text: '', emoji: '💡', tipMode: 'gamified' }
+    case 'article':  return { ...base, title: '', text: '', hasResponseField: true }
+    case 'feedback': return { ...base, title: 'Обратная связь', prompt: '' }
+    case 'question_day': return { ...base, title: 'Вопрос дня', text: '' }
+    case 'interactive': return { ...base, title: '', description: '', embedUrl: '' }
     default:         return { ...base }
   }
 }
@@ -108,6 +114,91 @@ export const deleteDayFromLibrary = (id) => {
   set(KEYS.DAY_LIBRARY, getDayLibrary().filter(d => d.id !== id))
 }
 
+// ─── Lesson archive (теги + поиск, отдельно от библиотеки дней) ─
+export const getLessonArchive = () => get(KEYS.LESSON_ARCHIVE) || []
+
+/** Подсказка 2–5 тегов по содержимому дня (без AI — по ключевым словам и типам блоков) */
+export function suggestLessonTags(day) {
+  const tags = new Set()
+  const parts = []
+  if (day?.title) parts.push(day.title)
+  for (const b of day?.blocks || []) {
+    if (b.title) parts.push(b.title)
+    if (b.text) parts.push(String(b.text).slice(0, 400))
+    if (b.caption) parts.push(String(b.caption).slice(0, 200))
+    if ((b.type === 'survey' || b.type === 'quiz') && b.questions?.length) {
+      b.questions.slice(0, 3).forEach(q => { if (q.text) parts.push(q.text) })
+    }
+    if (b.type === 'feedback' && b.prompt) parts.push(String(b.prompt).slice(0, 200))
+    if (b.type === 'interactive' && b.description) parts.push(String(b.description).slice(0, 200))
+  }
+  const blob = parts.join(' ').toLowerCase()
+
+  const addKw = (re, tag) => { if (re.test(blob)) tags.add(tag) }
+
+  for (const b of day?.blocks || []) {
+    if (b.type === 'video') tags.add('видео')
+    if (b.type === 'survey') tags.add('анкета')
+    if (b.type === 'quiz') tags.add('тест')
+    if (b.type === 'article') tags.add('статья')
+    if (b.type === 'feedback') tags.add('обратная связь')
+    if (b.type === 'question_day') tags.add('вопрос дня')
+    if (b.type === 'interactive') tags.add('интерактив')
+    if (b.type === 'tip') tags.add('совет дня')
+    if (b.type === 'audio') tags.add('аудио')
+    if (b.type === 'pdf') tags.add('pdf')
+    if (b.type === 'carousel' || b.type === 'image') tags.add('визуал')
+  }
+
+  addKw(/стресс|кортизол|тревог/i, 'антистресс')
+  addKw(/питан|нутриен|белк|завтрак|ужин|обед|еда|голод|рацион/i, 'питание')
+  addKw(/вода|гидратац/i, 'вода')
+  addKw(/сон|мелатонин|утро|пробужден/i, 'режим')
+  addKw(/эмоцион|заеда|триггер/i, 'эмоциональное питание')
+  addKw(/тел|дыхан|сканирован|расслаб/i, 'тело и практика')
+  addKw(/магний|омега|витамин|пробиотик/i, 'нутриенты')
+  addKw(/опрос|шкал|балл/i, 'рефлексия')
+  addKw(/марафон|день \d|недел/i, 'марафон')
+
+  const arr = [...tags]
+  if (arr.length < 2) {
+    if (!arr.includes('марафон')) arr.push('марафон')
+    if (!arr.includes('урок')) arr.push('урок')
+  }
+  return arr.slice(0, 5)
+}
+
+export const saveLessonToArchive = ({ day, title, tags, sourceMarathonName, sourceDayNumber }) => {
+  if (!day || !day.blocks) return null
+  const lib = getLessonArchive()
+  const cleanTags = [...new Set((tags || []).map(t => String(t).trim()).filter(Boolean).map(t => t.replace(/\s+/g, ' ')))]
+  const blocks = JSON.parse(JSON.stringify(day.blocks || []))
+  const item = {
+    id: `la_${Date.now()}`,
+    title: (title || day.title || `День ${day.dayNumber || ''}`).trim() || 'Урок',
+    tags: cleanTags,
+    blocks,
+    sourceDayNumber,
+    sourceMarathonName: sourceMarathonName || '',
+    savedAt: Date.now(),
+  }
+  lib.unshift(item)
+  set(KEYS.LESSON_ARCHIVE, lib)
+  return item
+}
+
+export const deleteLessonFromArchive = (id) => {
+  set(KEYS.LESSON_ARCHIVE, getLessonArchive().filter(i => i.id !== id))
+}
+
+export const getLessonArchiveTagSet = () => {
+  const s = new Set()
+  for (const item of getLessonArchive()) {
+    (item.tags || []).forEach(t => { if (t) s.add(t) })
+  }
+  return [...s].sort((a, b) => a.localeCompare(b, 'ru'))
+}
+
 // ─── Marathons ────────────────────────────────────────────
 export const getMarathons = () => get(KEYS.MARATHONS) || []
 export const getMarathon = (id) => getMarathons().find(m => m.id === id) || null
@@ -122,14 +213,16 @@ export const saveMarathon = (marathon) => {
 export const deleteMarathon = (id) => set(KEYS.MARATHONS, getMarathons().filter(m => m.id !== id))
 
 export const createMarathon = (data) => {
+  const duration = data.durationDays || 7
   const marathon = {
     id: `m_${Date.now()}`,
     name: data.name,
     description: data.description || '',
-    durationDays: data.durationDays || 7,
+    durationDays: duration,
     isActive: false,
     createdAt: Date.now(),
-    days: [], // days added manually in editor
+    // Сразу день 1 — чтобы в редакторе открывался конструктор блоков без лишнего шага
+    days: [{ dayNumber: 1, title: '', blocks: [] }],
   }
   return saveMarathon(marathon)
 }
